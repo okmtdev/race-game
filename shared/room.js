@@ -3,7 +3,8 @@
 // このクラスはサーバ（node）でも、ブラウザの「ひとりであそぶ」モードでも
 // そのまま使う。node 固有の API は使わず、保存は store（差しかえ可能）に任せる。
 import {
-  CAR_COLORS, DEFAULT_GP, DEFAULT_LAPS, DT, NPC_NAMES, POINTS, RACERS,
+  CAR_COLORS, DEFAULT_GP, DEFAULT_LAPS, DT, NPC_DIFFICULTY, NPC_MIX, NPC_NAMES,
+  NPC_TIERS, POINTS, RACERS,
 } from './constants.js';
 import {
   CAR_CATALOG, COSMETICS, CONSUMABLES, UPGRADES, buy, consumeForRace, newProfile,
@@ -13,7 +14,6 @@ import { CARS } from './cars.js';
 import { trackList } from './tracks.js';
 import { clamp } from './util.js';
 
-const DIFFICULTY = { easy: 0.86, normal: 0.95, hard: 1.02 };
 const RESULT_SEC = 7;
 
 export class Room {
@@ -122,7 +122,7 @@ export class Room {
         if (msg.mode === 'gp' || msg.mode === 'single') this.settings.mode = msg.mode;
         if (msg.laps) this.settings.laps = clamp(msg.laps | 0, 1, 5);
         if (msg.track) this.settings.track = msg.track;
-        if (DIFFICULTY[msg.difficulty]) this.settings.difficulty = msg.difficulty;
+        if (NPC_DIFFICULTY[msg.difficulty]) this.settings.difficulty = msg.difficulty;
         this.dirty = true;
         break;
       case 'start':
@@ -180,16 +180,20 @@ export class Room {
       index: 0,
       standings: new Map(), // id -> {id,name,color,kind,points,money}
     };
-    // NPC の顔ぶれは グランプリ中ずっと同じにする
-    this.npcPool = NPC_NAMES.slice()
-      .sort(() => 0.5 - Math.random())
-      .slice(0, RACERS)
-      .map((name, i) => ({
+    // NPC の顔ぶれは グランプリ中ずっと同じにする。
+    // うでまえは NPC_MIX の じゅんばん（へたが おおめ）で わりあてる。
+    const names = NPC_NAMES.slice().sort(() => 0.5 - Math.random());
+    this.npcPool = Array.from({ length: RACERS }, (_, i) => {
+      const tier = NPC_TIERS[NPC_MIX[i] || 'normal'];
+      const pool = tier.carPool.filter((id) => CARS.some((c) => c.id === id));
+      return {
         id: 'npc' + i,
-        name,
+        name: `${tier.badge}${names[i % names.length]}`,
+        tier: tier.key,
         color: CAR_COLORS[(i * 3 + 2) % CAR_COLORS.length].key,
-        car: CARS[(i * 2 + 1) % CARS.length].id,
-      }));
+        car: pool[i % pool.length] || CARS[0].id,
+      };
+    });
     for (const p of this.players.values()) p.points = 0;
     this.startRace();
   }
@@ -197,7 +201,7 @@ export class Room {
   /** 人が足りない分を NPC でうめて、レースをはじめる */
   startRace() {
     const humans = [...this.players.values()].slice(0, RACERS);
-    const skill = DIFFICULTY[this.settings.difficulty] || 0.95;
+    const diff = NPC_DIFFICULTY[this.settings.difficulty] || NPC_DIFFICULTY.normal;
 
     // NPC の性能は 人の平均くらいにして、ずっと勝てない／勝ちすぎを防ぐ
     const levels = {};
@@ -222,11 +226,17 @@ export class Room {
         consumables: consumeForRace(p.profile),
       };
     });
-    for (let i = racers.length; i < RACERS; i++) {
-      const npc = this.npcPool[i];
+    const humanCount = racers.length;
+    for (let i = humanCount; i < RACERS; i++) {
+      const npc = this.npcPool[i - humanCount];
+      const tier = NPC_TIERS[npc.tier];
       const prof = newProfile(npc.name, npc.color);
-      prof.upgrades = { ...levels };
-      prof.car = npc.car; // NPC も いろいろな クルマに のる
+      // へたな子は パーツも 1つ ひくい（つよくなりすぎない）
+      prof.upgrades = {};
+      for (const [k, v] of Object.entries(levels)) {
+        prof.upgrades[k] = clamp(v + tier.levelBonus, 0, 3);
+      }
+      prof.car = npc.car; // へたな子は おそい クルマに のる
       racers.push({
         id: npc.id,
         name: npc.name,
@@ -234,8 +244,12 @@ export class Room {
         hat: 'none',
         trail: 'none',
         kind: 'npc',
+        tier: npc.tier,
         profile: prof,
-        aiSkill: skill + (i - 1) * 0.015,
+        // ホストの「NPCの つよさ」ぶんだけ 上下させる
+        aiSkill: clamp(tier.skill + diff.skill, 0.5, 1.05),
+        // ホストの「NPCの つよさ」ぶんの スピード調整
+        speedAdjust: 1 + diff.speed,
       });
     }
 
@@ -392,6 +406,10 @@ export class Room {
         touch: p.touch,
       })),
       npcCount: Math.max(0, RACERS - this.players.size),
+      npcTiers: Array.from({ length: Math.max(0, RACERS - this.players.size) }, (_, i) => {
+        const t = NPC_TIERS[(this.npcPool && this.npcPool[i] ? this.npcPool[i].tier : NPC_MIX[i]) || 'normal'];
+        return { key: t.key, name: t.name, badge: t.badge };
+      }),
       gp: this.gp
         ? { index: this.gp.index, total: this.gp.tracks.length, tracks: this.gp.tracks, standings: this.standings() }
         : null,

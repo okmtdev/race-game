@@ -18,8 +18,11 @@ export const DEFAULT_GP = ['circuit', 'beach', 'snow'];
 /** カウントダウンの秒数 */
 export const COUNTDOWN_SEC = 3.5;
 
-/** 1位ゴールから何秒でレース強制終了にするか */
-export const FINISH_GRACE_SEC = 25;
+/**
+ * 1位ゴールから何秒でレース強制終了にするか。
+ * へたな NPC や はじめての子でも ちゃんと ゴールできるように 長めにとってある。
+ */
+export const FINISH_GRACE_SEC = 45;
 
 /** レースの上限時間（保険） */
 export const RACE_TIMEOUT_SEC = 300;
@@ -94,6 +97,50 @@ export const RESPAWN = { coin: 9, box: 6 };
 
 /** NPC の名前候補 */
 export const NPC_NAMES = ['ピコ', 'モグ', 'ラン', 'クマちゃん', 'ぴょん', 'たまご', 'ぷに', 'ゴロー'];
+
+/**
+ * NPC の うでまえ（3だんかい）。
+ *   skill     … カーブで 出す 速さ（大きいほど 上手）
+ *   speedMul  … さいこうスピードの ばいりつ
+ *   steerGain … ハンドルの はんのう（小さいほど もたつく＝ふくらむ）
+ *   look      … どれだけ 先を 見るか（小さいほど 曲がるのが おそい）
+ *   mistake   … ときどき やる しっぱい（ブレーキわすれ・ふくらみ）の おこりやすさ
+ *   carPool   … のる マシン（下手な子は おそい クルマに のる）
+ */
+export const NPC_TIERS = {
+  pro: {
+    key: 'pro', name: 'じょうず', badge: '😎',
+    skill: 0.95, speedMul: 1.0, steerGain: 2.4, look: 1.0, mistake: 0.0,
+    catchUpMax: 1.06, levelBonus: 0,
+    carPool: ['rosso', 'wedge', 'hyper'],
+  },
+  normal: {
+    key: 'normal', name: 'ふつう', badge: '🙂',
+    skill: 0.84, speedMul: 0.92, steerGain: 1.95, look: 0.88, mistake: 0.04,
+    catchUpMax: 1.03, levelBonus: 0,
+    carPool: ['gt', 'roadster', 'buggy'],
+  },
+  rookie: {
+    key: 'rookie', name: 'へた', badge: '🔰',
+    skill: 0.7, speedMul: 0.82, steerGain: 1.45, look: 0.7, mistake: 0.1,
+    catchUpMax: 1.0, levelBonus: -1,
+    carPool: ['classic', 'kei'],
+  },
+};
+
+/**
+ * NPC を 入れる じゅんばん（前から つかう）。
+ * 「へた」を おおめに して、人が かちやすいように している。
+ *   NPC1台 → へた / 2台 → へた・ふつう / 3台 → へた・ふつう・へた / 4台 → ＋じょうず
+ */
+export const NPC_MIX = ['rookie', 'normal', 'rookie', 'pro'];
+
+/** ホストが えらぶ「NPCの つよさ」で、ぜんいんを すこし 上下させる */
+export const NPC_DIFFICULTY = {
+  easy: { label: 'やさしい', skill: -0.1, speed: -0.05 },
+  normal: { label: 'ふつう', skill: 0, speed: 0 },
+  hard: { label: 'つよい', skill: 0.08, speed: 0.05 },
+};
 
 /** 選べるカラー */
 export const CAR_COLORS = [

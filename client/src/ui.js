@@ -1,5 +1,5 @@
 // メニュー画面（タイトル・ロビー・ショップ・けっか）の HTML を つくる
-import { CAR_COLORS, EMOTES } from '../../shared/constants.js';
+import { CAR_COLORS, EMOTES, NPC_DIFFICULTY } from '../../shared/constants.js';
 import { MAX_LEVEL } from '../../shared/catalog.js';
 import { carById } from '../../shared/cars.js';
 import { yen, timeStr } from '../../shared/util.js';
@@ -12,7 +12,9 @@ export function esc(s) {
   ));
 }
 
-const DIFF_LABEL = { easy: 'やさしい', normal: 'ふつう', hard: 'つよい' };
+const DIFF_LABEL = Object.fromEntries(
+  Object.entries(NPC_DIFFICULTY).map(([k, v]) => [k, v.label]),
+);
 
 function carName(id) {
   return carById(id).name;
@@ -98,9 +100,14 @@ function lobbyScreen(g) {
   const me = g.myId;
   const isHost = g.isHost();
   const players = room.players.map((p) => playerCard(p, me)).join('');
-  const npcs = Array.from({ length: room.npcCount }, (_, i) => (
+  // NPC は うでまえ（じょうず／ふつう／へた）つきで 見せる
+  const tiers = room.npcTiers && room.npcTiers.length
+    ? room.npcTiers
+    : Array.from({ length: room.npcCount }, () => null);
+  const npcs = tiers.map((t, i) => (
     `<div class="pcard"><div class="dot" style="background:#9aa8c2"></div>
-      <div class="nm">NPC ${i + 1}<br><span style="font-size:11px;color:#7b89a5">コンピュータ</span></div>
+      <div class="nm">NPC ${i + 1}<br><span style="font-size:11px;color:#7b89a5">
+        ${t ? esc(t.badge + t.name) : 'コンピュータ'}</span></div>
       <span class="tag npc">AI</span></div>`
   )).join('');
 
@@ -125,7 +132,7 @@ function lobbyScreen(g) {
     <div class="row" style="margin-top:8px">
       <span>しゅうかいすう</span>
       ${[1, 2, 3, 4, 5].map((n) => `<button class="${room.settings.laps === n ? 'primary' : 'ghost'}" data-a="laps:${n}">${n}</button>`).join('')}
-      <span style="margin-left:12px">NPCの つよさ</span>
+      <span style="margin-left:12px">NPC ぜんいんの つよさ</span>
       ${Object.keys(DIFF_LABEL).map((k) => `<button class="${room.settings.difficulty === k ? 'primary' : 'ghost'}" data-a="diff:${k}">${DIFF_LABEL[k]}</button>`).join('')}
     </div>
     ${room.settings.mode === 'single' ? `<h2>コースを えらぶ</h2><div class="tracks">${tracks}</div>` : `
@@ -148,7 +155,8 @@ function lobbyScreen(g) {
   return `
   <div class="panel">
     <h1>${g.mode === 'online' ? 'みんなの ロビー' : 'ひとりで れんしゅう'}</h1>
-    <p class="sub">4だいで レースします。たりない ぶんは NPC が はいります</p>
+    <p class="sub">4だいで レースします。たりない ぶんは NPC が はいります
+      （🔰へた が おおめ・😎じょうず は つよい）</p>
     <div class="plist">${players}${npcs}</div>
     ${startBox}
     ${joinHint}
@@ -298,7 +306,7 @@ function resultScreen(g) {
     <tr class="${r.id === g.myId ? 'me' : ''}">
       <td class="rank${r.rank}">${r.rank}い</td>
       <td>${esc(r.name)}${r.kind === 'npc' ? ' <span class="tag npc">AI</span>' : ''}</td>
-      <td class="num">${timeStr(r.time)}</td>
+      <td class="num">${r.time == null ? 'とちゅうまで' : timeStr(r.time)}</td>
       <td class="num">${timeStr(r.bestLap)}</td>
       <td class="num">${r.coins}まい</td>
       <td class="num">${yen(r.money)}</td>

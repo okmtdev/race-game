@@ -3,7 +3,7 @@
 // 固定ステップ（1/30秒）で step() を呼ぶだけ。
 import {
   CAR_R, COUNTDOWN_SEC, DEFAULT_LAPS, FINISH_GRACE_SEC, ITEM_TABLE,
-  MONEY, PHYS, RACE_TIMEOUT_SEC, RESPAWN, SURFACES,
+  MONEY, NPC_TIERS, PHYS, RACE_TIMEOUT_SEC, RESPAWN, SURFACES,
 } from './constants.js';
 import { statsFor } from './catalog.js';
 import { getTrack, isOffroad, posAt, project } from './tracks.js';
@@ -39,6 +39,13 @@ export class Race {
     this.cars = opts.racers.slice(0, grid.length).map((r, i) => {
       const g = grid[i];
       const stats = statsFor(r.profile, { consumables: r.consumables || {} });
+      // NPC の うでまえ（じょうず／ふつう／へた）。人のクルマには つかわない。
+      const tier = NPC_TIERS[r.tier] || NPC_TIERS.pro;
+      if (r.kind === 'npc') {
+        const mul = tier.speedMul * (r.speedAdjust || 1);
+        stats.maxSpeed *= mul;
+        stats.accel *= Math.sqrt(mul);
+      }
       const pr = project(this.track, g.x, g.y);
       return {
         id: r.id,
@@ -50,7 +57,8 @@ export class Race {
         trail: r.trail || 'none',
         kind: r.kind,
         stats,
-        aiSkill: r.aiSkill != null ? r.aiSkill : 0.94,
+        aiTier: tier,
+        aiSkill: r.aiSkill != null ? r.aiSkill : tier.skill,
         x: g.x,
         y: g.y,
         angle: g.angle,
@@ -86,7 +94,13 @@ export class Race {
         holdStart: 0, // ロケットスタート用
         lastInputTime: -99, // そうさが とどいた 時間（とどかなくなったら AI が代走）
         autoDriven: false,
-        ai: { line: g.lateral / this.track.halfWidth, timer: 0, jitter: this.rng.range(-0.2, 0.2) },
+        ai: {
+          line: g.lateral / this.track.halfWidth,
+          timer: 0,
+          jitter: this.rng.range(-0.2, 0.2),
+          blunder: 0, // >0 のあいだ しっぱい中（ブレーキを ふまない・ふくらむ）
+          blunderSide: 1,
+        },
       };
     });
 
@@ -618,7 +632,9 @@ export function npcInput(car, race) {
   const track = race.track;
   const speed = Math.hypot(car.vx, car.vy);
   const skill = car.aiSkill;
+  const tier = car.aiTier || NPC_TIERS.pro;
 
+  car.ai.blunder = Math.max(0, car.ai.blunder - 1 / 30);
   car.ai.timer -= 1 / 30;
   if (car.ai.timer <= 0) {
     car.ai.timer = 0.35 + race.rng() * 0.4;
@@ -627,12 +643,23 @@ export function npcInput(car, race) {
     const near = nearestGoodie(race, car);
     if (near) target = clamp(near / track.halfWidth, -0.85, 0.85);
     car.ai.line = clamp(target, -0.8, 0.8);
+    // へたな子は ときどき しっぱいする（ブレーキを ふみわすれて ふくらむ）
+    if (tier.mistake > 0 && race.rng() < tier.mistake) {
+      car.ai.blunder = 0.7 + race.rng() * 1.0;
+      car.ai.blunderSide = race.rng() < 0.5 ? -1 : 1;
+    }
   }
+  const blundering = car.ai.blunder > 0;
 
-  // 目標地点（速いほど遠くを見る）
-  const look = 110 + speed * 0.5;
+  // 目標地点（速いほど遠くを見る。へたな子は 近くしか 見ないので 曲がるのが おそい）
+  const look = (110 + speed * 0.5) * tier.look;
   const aheadArc = car.arc + look;
   let lateralTarget = car.ai.line * track.halfWidth;
+  if (blundering) {
+    // しっぱい中は そとに ふくらむ
+    lateralTarget = clamp(lateralTarget + car.ai.blunderSide * track.halfWidth * 0.9,
+      -track.halfWidth * 1.1, track.halfWidth * 1.1);
+  }
 
   // 前に詰まっていたら よこに ずらす
   for (const other of race.cars) {
@@ -649,14 +676,16 @@ export function npcInput(car, race) {
 
   const tp = posAt(track, aheadArc, lateralTarget);
   const want = Math.atan2(tp.y - car.y, tp.x - car.x);
-  let steer = clamp(wrapAngle(want - car.angle) * 2.4, -1, 1);
+  // steerGain が 小さいほど ハンドルが もたついて、カーブで ふくらむ
+  let steer = clamp(wrapAngle(want - car.angle) * tier.steerGain, -1, 1);
 
   // カーブに合わせた速度
   // うしろに いるときは ちょっとだけ はやく（せっても はなれすぎないように）
   const gap = (race.leaderProgress || car.progress) - car.progress;
-  const catchUp = clamp(1 + gap / 12000, 0.95, 1.06);
-  const limit =
-    track.limit[(car.hint + Math.round(look / track.spacing)) % track.N] * (0.9 + skill * 0.12) * catchUp;
+  const catchUp = clamp(1 + gap / 12000, 0.95, tier.catchUpMax);
+  let limit =
+    track.limit[(car.hint + Math.round(look / track.spacing)) % track.N] * (0.35 + skill * 0.7) * catchUp;
+  if (blundering) limit *= 1.6; // ブレーキを ふみわすれる
   let throttle = 1;
   if (speed > limit * 1.06) throttle = -1;
   else if (speed > limit) throttle = 0;
@@ -668,7 +697,7 @@ export function npcInput(car, race) {
   }
   if (speed < 30 && car.spin <= 0) throttle = 1;
 
-  // アイテムを使う
+  // アイテムを使う（へたな子は つかうのが へた）
   let useItem = false;
   if (car.item) {
     const straight = track.limit[car.hint] > 330;
@@ -677,7 +706,8 @@ export function npcInput(car, race) {
     else if (car.item === 'shield') useItem = someoneClose(race, car, 220);
     else if (car.item === 'oil') useItem = someoneBehind(race, car, 300);
     else if (car.item === 'thunder') useItem = car.rank > 1;
-    if (useItem && race.rng() < 0.25) useItem = false; // ちょっと ぬける
+    if (tier.key !== 'pro' && race.rng() < 0.5) useItem = race.rng() < 0.25; // てきとうに つかう
+    else if (useItem && race.rng() < 0.25) useItem = false; // ちょっと ぬける
   }
 
   return { steer: steer + car.ai.jitter * 0.08, throttle, item: useItem };
