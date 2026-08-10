@@ -1,0 +1,29 @@
+{
+  "name": "kids-race-grand-prix",
+  "version": "1.0.0",
+  "private": true,
+  "description": "こども向け 4人たいせん レースゲーム（ローカルネットワークで スマホから さんか）",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "build": "node tools/build.js",
+    "preview": "SERVE_DIST=1 node server/index.js",
+    "simtest": "node tools/simtest.js",
+    "smoke": "node tools/smoke.js",
+    "deploy": "bash tools/deploy.sh"
+  },
+  "keywords": [
+    "game",
+    "racing",
+    "multiplayer",
+    "kids",
+    "canvas"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
