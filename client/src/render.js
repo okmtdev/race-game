@@ -161,6 +161,7 @@ export class Renderer {
     this.drawDecor(ctx, t, vb);
     this.drawPickups(ctx, t, view, vb);
     this.drawOils(ctx, view);
+    this.drawShots(ctx, view);
     this.drawParticles(ctx);
     this.drawCars(ctx, view, dt);
     this.drawFloaters(ctx);
@@ -298,6 +299,128 @@ export class Renderer {
           ctx.fillStyle = '#7a5230';
           ctx.fillRect(-5, 8, 10, 16);
         }
+      } else if (d.kind === 'farm') {
+        if (d.variant === 0) {
+          ctx.fillStyle = '#c0392b'; // あかい こや
+          ctx.fillRect(-20, -14, 40, 30);
+          ctx.fillStyle = '#8e2c22';
+          tri(ctx, 0, -32, 22, 18);
+          ctx.fillStyle = '#f6e3b5';
+          ctx.fillRect(-6, 0, 12, 16);
+        } else {
+          ctx.fillStyle = '#e8c667'; // わらの たば
+          roundRect(ctx, -16, -10, 32, 22, 8);
+          ctx.fill();
+          ctx.strokeStyle = '#c9a544';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      } else if (d.kind === 'harbor') {
+        if (d.variant === 0) {
+          ctx.fillStyle = '#ff5d5d'; // ブイ
+          circle(ctx, 0, 0, 12);
+          ctx.fillStyle = '#fff';
+          circle(ctx, 0, 0, 6);
+        } else {
+          ctx.fillStyle = ['#4a90d9', '#f2b134', '#5fbf6b'][d.variant % 3]; // コンテナ
+          roundRect(ctx, -22, -12, 44, 24, 4);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,.25)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      } else if (d.kind === 'cactus') {
+        ctx.fillStyle = '#3f9e5c';
+        roundRect(ctx, -7, -30, 14, 46, 7);
+        ctx.fill();
+        roundRect(ctx, -22, -18, 12, 10, 5);
+        ctx.fill();
+        roundRect(ctx, -22, -18, 10, 22, 5);
+        ctx.fill();
+        if (d.variant === 1) {
+          roundRect(ctx, 10, -24, 12, 10, 5);
+          ctx.fill();
+          roundRect(ctx, 12, -24, 10, 20, 5);
+          ctx.fill();
+        }
+      } else if (d.kind === 'jungle') {
+        ctx.fillStyle = d.variant === 0 ? '#2b7a45' : '#246b3c';
+        for (let i = 0; i < 6; i++) {
+          ctx.save();
+          ctx.rotate((i / 6) * Math.PI * 2);
+          ctx.beginPath();
+          ctx.ellipse(0, -20, 12, 24, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.fillStyle = '#7a5230';
+        ctx.fillRect(-5, -4, 10, 26);
+      } else if (d.kind === 'city') {
+        const h = 34 + d.variant * 16;
+        ctx.fillStyle = '#39406b';
+        ctx.fillRect(-18, -h, 36, h + 14);
+        ctx.fillStyle = Math.sin(this.time * 2 + d.x) > 0 ? '#ffe66d' : '#8f97c9';
+        for (let r = 0; r < 3; r++) {
+          for (let c = 0; c < 3; c++) {
+            ctx.fillRect(-12 + c * 9, -h + 8 + r * 12, 6, 7);
+          }
+        }
+      } else if (d.kind === 'candy') {
+        if (d.variant === 0) {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(-2, -6, 4, 26);
+          ctx.fillStyle = ['#ff6ba9', '#7ad4ff', '#ffd93b'][d.x % 3 | 0];
+          circle(ctx, 0, -14, 14);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, -14, 7, 0, Math.PI * 1.5);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#ff8ec6';
+          roundRect(ctx, -14, -10, 28, 20, 9);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          roundRect(ctx, -6, -10, 5, 20, 3);
+          ctx.fill();
+        }
+      } else if (d.kind === 'volcano') {
+        if (d.variant === 0) {
+          ctx.fillStyle = '#ff7043'; // ようがんだまり
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 22, 15, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffd08a';
+          ctx.beginPath();
+          ctx.ellipse(-4, -3, 9, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#4b3f45';
+          tri(ctx, 0, -26, 20, 30);
+          ctx.fillStyle = '#6a5b62';
+          circle(ctx, 8, 4, 8);
+        }
+      } else if (d.kind === 'space') {
+        if (d.variant === 0) {
+          ctx.fillStyle = '#ffe98a';
+          const tw = 0.5 + 0.5 * Math.sin(this.time * 3 + d.x);
+          ctx.globalAlpha = tw;
+          for (let i = 0; i < 4; i++) {
+            ctx.save();
+            ctx.rotate((i / 4) * Math.PI);
+            ctx.fillRect(-2, -14, 4, 28);
+            ctx.restore();
+          }
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.fillStyle = ['#7b5cff', '#5ce1e6', '#ff7bc0'][d.variant % 3];
+          circle(ctx, 0, 0, 16);
+          ctx.strokeStyle = 'rgba(255,255,255,.6)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 26, 8, 0.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       } else if (d.kind === 'flag') {
         ctx.fillStyle = '#cfd7e6';
         ctx.fillRect(-2, -40, 4, 44);
@@ -361,18 +484,60 @@ export class Renderer {
   }
 
   drawOils(ctx, view) {
-    for (const [x, y] of view.oils || []) {
+    for (const o of view.oils || []) {
+      const [x, y, fire] = o;
       ctx.save();
       ctx.translate(x, y);
-      ctx.fillStyle = 'rgba(70,40,110,.75)';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 30, 22, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(190,160,255,.6)';
-      ctx.beginPath();
-      ctx.ellipse(-8, -6, 9, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (fire) {
+        const f = 0.8 + 0.2 * Math.sin(this.time * 12 + x);
+        ctx.fillStyle = 'rgba(255,90,30,.85)';
+        circle(ctx, 0, 0, 18 * f);
+        ctx.fillStyle = 'rgba(255,200,80,.95)';
+        circle(ctx, 0, -3, 10 * f);
+        ctx.font = '20px system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔥', 0, -2);
+      } else {
+        ctx.fillStyle = 'rgba(70,40,110,.75)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 30, 22, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(190,160,255,.6)';
+        ctx.beginPath();
+        ctx.ellipse(-8, -6, 9, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
+    }
+  }
+
+  /** とんでいく アイテム（ミサイル・ゆきだま） */
+  drawShots(ctx, view) {
+    for (const [x, y, size, snow] of view.shots || []) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (snow) {
+        ctx.fillStyle = '#ffffff';
+        circle(ctx, 0, 0, size);
+        ctx.strokeStyle = '#bcd7ea';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#8fb6d6';
+        circle(ctx, -size * 0.3, -size * 0.3, size * 0.25);
+      } else {
+        ctx.fillStyle = 'rgba(255,190,80,.55)';
+        circle(ctx, 0, 0, size + 7 + Math.sin(this.time * 20) * 2);
+        ctx.font = `${size * 2}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('☄️', 0, 0);
+      }
+      ctx.restore();
+      this.spawn(x, y, {
+        vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40,
+        life: 0.3, size: 5, color: snow ? '#ffffff' : '#ffc46b',
+      });
     }
   }
 
@@ -445,6 +610,7 @@ export class Renderer {
 
       const size = carSize(meta.model);
       ctx.save();
+      if (c.gh > 0) ctx.globalAlpha = 0.45; // おばけは すけて見える
       ctx.translate(c.x, c.y);
       // かげ
       ctx.fillStyle = 'rgba(0,0,0,.22)';
@@ -464,6 +630,33 @@ export class Renderer {
         ctx.fillText(HAT_EMOJI[meta.hat], c.x, c.y - 2);
       }
 
+      // スター（むてき）は にじいろに ひかる
+      if (c.st > 0) {
+        ctx.save();
+        const hue = (this.time * 500) % 360;
+        ctx.globalAlpha = 0.75;
+        ctx.strokeStyle = `hsl(${hue},100%,65%)`;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        this.spawn(c.x, c.y, {
+          vx: (Math.random() - 0.5) * 120, vy: (Math.random() - 0.5) * 120,
+          life: 0.5, size: 6, color: `hsl(${(hue + Math.random() * 120) % 360},100%,65%)`,
+        });
+      }
+      // シャボン（ふわふわ）
+      if (c.bu > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#bfe9ff';
+        circle(ctx, c.x, c.y, 34 + Math.sin(this.time * 4) * 3);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+      }
       // バリア
       if (c.sh > 0) {
         ctx.save();

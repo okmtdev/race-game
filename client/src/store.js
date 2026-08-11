@@ -50,6 +50,21 @@ export class LocalProfileStore {
   }
 }
 
+/** 名前で ガレージを とりだす（サーバに おくって 引きつぐ ため） */
+export function loadGarage(name) {
+  const all = read(KEY_PROFILES, {});
+  const key = String(name || '').trim().toLowerCase();
+  return all[key] || null;
+}
+
+/** サーバから とどいた ガレージを ブラウザにも 保存する（データの 引きつぎ用） */
+export function saveGarage(profile) {
+  if (!profile || !profile.name) return;
+  const all = read(KEY_PROFILES, {});
+  all[String(profile.name).trim().toLowerCase()] = profile;
+  write(KEY_PROFILES, all);
+}
+
 const defaults = {
   name: '',
   color: 'red',

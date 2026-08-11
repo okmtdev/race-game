@@ -259,3 +259,29 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .carcard .ct { font-size: 11px; color: #6b7a99; line-height: 1.4; }
 .carcard .cs { font-size: 11px; color: #37507e; display: flex; flex-direction: column; }
 .carcard button { font-size: 14px; padding: 9px 10px; margin-top: 4px; }
+
+/* グランプリ（カップ）えらび */
+.cups { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cup {
+  border: 4px solid #e6ebf4; border-radius: 20px; padding: 12px; background: #fff; cursor: pointer;
+}
+.cup.on { border-color: var(--accent); background: #fffbe9; }
+.cup-h { font-size: 19px; }
+.cup-d { font-size: 12px; color: #6b7a99; margin: 2px 0 8px; }
+.cup-t { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cup-t span { font-size: 10px; color: #58688c; text-align: center; line-height: 1.2; }
+.cup-t canvas { width: 100%; height: 44px; display: block; border-radius: 8px; }
+
+/* アイテムの せつめい（タイトル画面） */
+.itemhelp { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+.itemhelp span {
+  background: #f2f5fb; border-radius: 12px; padding: 6px 10px; font-size: 14px;
+  display: flex; flex-direction: column;
+}
+.itemhelp span.sp { background: #fff4e0; border-left: 5px solid var(--accent); }
+.itemhelp i { font-size: 11px; color: #6b7a99; font-style: normal; }
+
+/* 8だいのときの じゅんい表 */
+#standings.compact { font-size: 11px; padding: 5px 8px; }
+#standings.compact div { line-height: 1.45; }
+#standings.compact .sq { width: 10px; height: 10px; }

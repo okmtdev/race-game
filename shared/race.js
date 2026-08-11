@@ -3,13 +3,16 @@
 // 固定ステップ（1/30秒）で step() を呼ぶだけ。
 import {
   CAR_R, COUNTDOWN_SEC, DEFAULT_LAPS, FINISH_GRACE_SEC, ITEM_TABLE,
-  MONEY, NPC_TIERS, PHYS, RACE_TIMEOUT_SEC, RESPAWN, SURFACES,
+  MONEY, NPC_TIERS, PHYS, RACE_TIMEOUT_SEC, RESPAWN, SPECIAL_WEIGHT, SURFACES,
 } from './constants.js';
 import { statsFor } from './catalog.js';
 import { getTrack, isOffroad, posAt, project } from './tracks.js';
 import { clamp, makeRng, wrapAngle } from './util.js';
 
 const OIL_TTL = 22;
+const FIRE_TTL = 14;
+const SHOT_SPEED = { shot: 640, snowball: 470 };
+const SHOT_TTL = 8;
 const BOX_R = 36;
 const COIN_R = 28;
 const PAD_R = 46;
@@ -32,6 +35,7 @@ export class Race {
     this.firstFinishTime = null;
     this.events = [];
     this.oils = [];
+    this.shots = []; // とんでいく アイテム（ミサイル・ゆきだま）
     this.finishOrder = [];
     this.lastCountdownStep = -1;
 
@@ -77,6 +81,10 @@ export class Race {
         slow: 0,
         magnet: 0,
         invuln: 0,
+        ghost: 0,
+        star: 0,
+        bubble: 0,
+        tripleLeft: 0,
         money: 0,
         coins: 0,
         driftTime: 0,
@@ -171,6 +179,7 @@ export class Race {
     this.resolveCarCollisions();
     this.updatePickups(dt);
     this.updateOils(dt);
+    this.updateShots(dt);
     this.updateRanks();
 
     // 終了判定
@@ -197,6 +206,9 @@ export class Race {
     car.magnet = Math.max(0, car.magnet - dt);
     car.invuln = Math.max(0, car.invuln - dt);
     car.spin = Math.max(0, car.spin - dt);
+    car.ghost = Math.max(0, car.ghost - dt);
+    car.star = Math.max(0, car.star - dt);
+    car.bubble = Math.max(0, car.bubble - dt);
 
     // 入力（NPC・ゴール後のクルマは AI が運転する）
     // スマホで ほかのアプリに いった／画面を 消した ときは そうさが とどかなくなるので、
@@ -227,6 +239,10 @@ export class Race {
     if (car.offroad) cap *= s.offroadSpeedMul;
     if (car.slow > 0) cap *= 0.7;
     if (car.boost > 0) cap *= s.boostMul;
+    if (car.star > 0) cap *= 1.18;
+    // 1いが ゴールしたら、のこりの みんなは「ラストスパート」で はやくなる
+    // （まちじかんを みじかくして、おそい子でも ちゃんと ゴールできるように）
+    if (this.firstFinishTime != null && !car.finished) cap *= 1.3;
 
     // 前後の加速
     if (spinning) {
@@ -245,7 +261,8 @@ export class Race {
     if (!spinning) {
       const speedFactor = clamp(Math.abs(vLong) / 80, 0, 1) * (1 - 0.3 * clamp(Math.abs(vLong) / s.maxSpeed, 0, 1));
       const dir = vLong < -1 ? -1 : 1;
-      car.angle += steer * s.turnRate * speedFactor * dir * dt;
+      const bubbleMul = car.bubble > 0 ? 0.45 : 1;
+      car.angle += steer * s.turnRate * speedFactor * dir * bubbleMul * dt;
     } else {
       car.angle += car.spinDir * 9 * dt;
     }
@@ -254,6 +271,7 @@ export class Race {
     let gripK = s.grip * surface.gripMul;
     if (car.offroad) gripK *= 0.55;
     if (spinning) gripK *= 0.3;
+    if (car.bubble > 0) gripK *= 0.35; // ふわふわして ハンドルが きかない
     vLat *= Math.exp(-gripK * dt);
 
     // ドリフト判定（おかねボーナス＆エフェクト用）
@@ -393,16 +411,30 @@ export class Race {
     }
   }
 
+  /**
+   * アイテム抽選。4人でも8人でも おなじ感じに なるように
+   * 「前から何割の いち か」で 4つの バケツに わけている。
+   */
   rollItem(rank) {
-    const table = ITEM_TABLE[clamp((rank | 0) - 1, 0, ITEM_TABLE.length - 1)];
+    const n = this.cars.length || 4;
+    const bucket = clamp(Math.floor(((rank | 0) - 1) * 4 / n), 0, ITEM_TABLE.length - 1);
+    const table = ITEM_TABLE[bucket].slice();
+    // そのステージだけの とくべつアイテム
+    if (this.track.special) table.push([this.track.special, SPECIAL_WEIGHT[bucket]]);
     let total = 0;
     for (const [, w] of table) total += w;
     let r = this.rng() * total;
+    let picked = table[0][0];
     for (const [key, w] of table) {
       r -= w;
-      if (r <= 0) return key;
+      if (r <= 0) {
+        picked = key;
+        break;
+      }
     }
-    return table[0][0];
+    // 1いは「いれかわり」を つかえないので べつの ものに する
+    if (picked === 'swap' && rank <= 1) picked = 'rocket';
+    return picked;
   }
 
   giveBoost(car, seconds, why) {
@@ -422,41 +454,202 @@ export class Race {
     if (!item || car.finished) return;
     car.item = null;
     this.emit('useitem', { id: car.id, item });
-    if (item === 'rocket') {
-      this.giveBoost(car, car.stats.boostTime, 'item');
-    } else if (item === 'shield') {
-      car.shield = 10;
-    } else if (item === 'magnet') {
-      car.magnet = 6;
-    } else if (item === 'oil') {
-      const bx = car.x - Math.cos(car.angle) * 60;
-      const by = car.y - Math.sin(car.angle) * 60;
-      this.oils.push({ x: bx, y: by, ttl: OIL_TTL, owner: car.id, safe: 1.0 });
-    } else if (item === 'thunder') {
-      let hits = 0;
-      for (const other of this.cars) {
-        if (other === car || other.finished) continue;
-        if (other.progress > car.progress) {
-          if (!this.tryHit(other, 'thunder')) continue;
-          hits++;
-        }
+
+    switch (item) {
+      case 'rocket':
+        this.giveBoost(car, car.stats.boostTime, 'item');
+        break;
+      case 'shield':
+        car.shield = 10;
+        break;
+      case 'magnet':
+        car.magnet = 6;
+        break;
+      case 'ghost':
+        car.ghost = 5;
+        break;
+      case 'star':
+        car.star = 8;
+        car.shield = 0;
+        break;
+      case 'oil':
+        this.dropHazard(car, 'oil', 60);
+        break;
+      case 'fireball':
+        // うしろに ほのおを 3つ ならべて おく
+        for (let i = 0; i < 3; i++) this.dropHazard(car, 'fire', 55 + i * 46);
+        break;
+      case 'shot':
+      case 'snowball':
+        this.spawnShot(car, item);
+        break;
+      case 'triple': {
+        // 3かい ダッシュできる（つかいきるまで アイテムわくに のこる）
+        if (car.tripleLeft <= 0) car.tripleLeft = 3;
+        this.giveBoost(car, car.stats.boostTime * 0.8, 'item');
+        car.tripleLeft -= 1;
+        if (car.tripleLeft > 0) car.item = 'triple';
+        break;
       }
-      this.emit('thunder', { id: car.id, hits });
+      case 'thunder':
+      case 'candy': {
+        const strong = item === 'candy';
+        let hits = 0;
+        for (const other of this.cars) {
+          if (other === car || other.finished) continue;
+          if (other.progress > car.progress) {
+            if (!this.tryHit(other, strong ? 'candy' : 'thunder')) continue;
+            hits++;
+          }
+        }
+        this.emit('thunder', { id: car.id, hits, item });
+        break;
+      }
+      case 'bubble': {
+        const target = this.carAhead(car);
+        if (target && this.tryHit(target, 'bubble')) {
+          this.emit('bubbled', { id: target.id, from: car.id });
+        }
+        break;
+      }
+      case 'vine': {
+        // 1いを つかまえて とめる（じぶんが 1いなら 2いを ねらう）
+        const leader = this.sortedCars().find((c) => !c.finished && c !== car);
+        if (leader) this.tryHit(leader, 'vine');
+        break;
+      }
+      case 'swap': {
+        const target = this.carAhead(car);
+        if (target) {
+          this.swapCars(car, target);
+          this.emit('swap', { id: car.id, other: target.id });
+        } else {
+          this.giveBoost(car, car.stats.boostTime, 'item');
+        }
+        break;
+      }
+      default:
+        break;
     }
   }
 
-  /** 攻撃が当たったときの処理。バリアで防がれたら false */
+  /** じぶんの すぐ前を 走っている クルマ */
+  carAhead(car) {
+    let best = null;
+    for (const other of this.cars) {
+      if (other === car || other.finished) continue;
+      if (other.progress <= car.progress) continue;
+      if (!best || other.progress < best.progress) best = other;
+    }
+    return best;
+  }
+
+  /** 位置を そっくり いれかえる */
+  swapCars(a, b) {
+    for (const k of ['x', 'y', 'angle', 'vx', 'vy', 'arc', 'lateral', 'lap', 'progress', 'hint']) {
+      const tmp = a[k];
+      a[k] = b[k];
+      b[k] = tmp;
+    }
+    a.invuln = Math.max(a.invuln, 0.6);
+    b.invuln = Math.max(b.invuln, 0.6);
+  }
+
+  /** うしろに オイル／ほのおを おく */
+  dropHazard(car, kind, back) {
+    this.oils.push({
+      x: car.x - Math.cos(car.angle) * back,
+      y: car.y - Math.sin(car.angle) * back,
+      ttl: kind === 'fire' ? FIRE_TTL : OIL_TTL,
+      owner: car.id,
+      safe: 1.0,
+      kind,
+    });
+  }
+
+  /** とんでいく アイテムを 出す */
+  spawnShot(car, kind) {
+    const fx = Math.cos(car.angle);
+    const fy = Math.sin(car.angle);
+    const pr = project(this.track, car.x + fx * 50, car.y + fy * 50, car.hint);
+    this.shots.push({
+      x: car.x + fx * 50,
+      y: car.y + fy * 50,
+      angle: car.angle,
+      kind,
+      owner: car.id,
+      ttl: SHOT_TTL,
+      hint: pr.i,
+      lateral: pr.lateral,
+      size: kind === 'snowball' ? 16 : 13,
+      safe: 0.25,
+    });
+  }
+
+  /** とんでいく アイテムを うごかす（コースに そって 進む） */
+  updateShots(dt) {
+    const track = this.track;
+    for (let i = this.shots.length - 1; i >= 0; i--) {
+      const sh = this.shots[i];
+      sh.ttl -= dt;
+      sh.safe = Math.max(0, sh.safe - dt);
+      if (sh.ttl <= 0) {
+        this.shots.splice(i, 1);
+        continue;
+      }
+      // ゆきだまは ころがるほど 大きくなる
+      if (sh.kind === 'snowball') sh.size = Math.min(34, sh.size + 2.4 * dt);
+
+      const pr = project(track, sh.x, sh.y, sh.hint);
+      sh.hint = pr.i;
+      // 道の まんなか寄りを 走らせる
+      const target = posAt(track, pr.arc + 90, clamp(sh.lateral, -track.halfWidth * 0.8, track.halfWidth * 0.8));
+      const want = Math.atan2(target.y - sh.y, target.x - sh.x);
+      sh.angle += wrapAngle(want - sh.angle) * Math.min(1, 7 * dt);
+      const speed = SHOT_SPEED[sh.kind] || 600;
+      sh.x += Math.cos(sh.angle) * speed * dt;
+      sh.y += Math.sin(sh.angle) * speed * dt;
+
+      let hit = false;
+      for (const car of this.cars) {
+        if (car.finished) continue;
+        if (sh.safe > 0 && car.id === sh.owner) continue;
+        const d = Math.hypot(car.x - sh.x, car.y - sh.y);
+        if (d < sh.size + CAR_R) {
+          this.tryHit(car, sh.kind);
+          hit = true;
+          break;
+        }
+      }
+      if (hit) {
+        this.emit('shothit', { x: sh.x, y: sh.y, kind: sh.kind });
+        this.shots.splice(i, 1);
+      }
+    }
+  }
+
+  /** 攻撃が当たったときの処理。バリア・おばけ・スターで ふせがれたら false */
   tryHit(car, kind) {
+    if (car.ghost > 0 || car.star > 0) return false;
     if (car.shield > 0) {
       car.shield = 0;
       this.emit('shieldbreak', { id: car.id });
       return false;
     }
     if (car.invuln > 0) return false;
-    if (kind === 'thunder') {
-      car.slow = 2.4;
+    if (kind === 'thunder' || kind === 'candy') {
+      car.slow = kind === 'candy' ? 3.5 : 2.4;
       car.invuln = 0.4;
-      this.emit('slow', { id: car.id });
+      this.emit('slow', { id: car.id, kind });
+    } else if (kind === 'bubble') {
+      car.bubble = 4.5;
+      car.invuln = 0.4;
+      this.emit('bubble', { id: car.id });
+    } else if (kind === 'vine') {
+      car.spin = Math.max(car.spin, 1.6);
+      car.spinDir = this.rng() < 0.5 ? -1 : 1;
+      car.invuln = car.spin + 0.5;
+      this.emit('spin', { id: car.id, kind });
     } else {
       car.spin = car.stats.spinTime;
       car.spinDir = this.rng() < 0.5 ? -1 : 1;
@@ -490,9 +683,11 @@ export class Race {
         if (o.safe > 0 && car.id === o.owner) continue;
         const dx = car.x - o.x;
         const dy = car.y - o.y;
-        if (dx * dx + dy * dy < 30 * 30) {
-          if (this.tryHit(car, 'oil')) {
-            this.oils.splice(i, 1);
+        const r = o.kind === 'fire' ? 28 : 30;
+        if (dx * dx + dy * dy < r * r) {
+          if (this.tryHit(car, o.kind === 'fire' ? 'fire' : 'oil')) {
+            // ほのおは のこりつづける（オイルは 1回で 消える）
+            if (o.kind !== 'fire') this.oils.splice(i, 1);
             break;
           }
         }
@@ -511,6 +706,12 @@ export class Race {
         const d = Math.hypot(dx, dy);
         const min = CAR_R * 2;
         if (d >= min || d < 1e-4) continue;
+        // おばけは すりぬける
+        if (a.ghost > 0 || b.ghost > 0) {
+          if (a.star > 0) this.tryHit(b, 'star');
+          else if (b.star > 0) this.tryHit(a, 'star');
+          continue;
+        }
         const nx = dx / d;
         const ny = dy / d;
         const push = (min - d) / 2 + 0.5;
@@ -528,11 +729,11 @@ export class Race {
           b.vy -= ny * imp;
           this.emit('bump', { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         }
-        // ダッシュ中に体当たりするとスピンさせられる
-        const aFast = a.boost > 0 && b.boost <= 0;
-        const bFast = b.boost > 0 && a.boost <= 0;
-        if (aFast) this.tryHit(b, 'bump');
-        else if (bFast) this.tryHit(a, 'bump');
+        // スター中や ダッシュ中に 体当たりすると 相手を スピンさせられる
+        const aFast = a.star > 0 || (a.boost > 0 && b.boost <= 0);
+        const bFast = b.star > 0 || (b.boost > 0 && a.boost <= 0);
+        if (aFast && !bFast) this.tryHit(b, 'bump');
+        else if (bFast && !aFast) this.tryHit(a, 'bump');
       }
     }
   }
@@ -570,6 +771,7 @@ export class Race {
       // つかっているので、ここでは つかわない。
       tm: r2(this.time),
       ph: this.phase,
+      sp: this.firstFinishTime != null ? 1 : 0, // ラストスパート中
       rt: r2(this.startedAt == null ? -(COUNTDOWN_SEC - this.time) : this.time - this.startedAt),
       cars: this.cars.map((c) => ({
         i: c.id,
@@ -578,7 +780,6 @@ export class Race {
         a: r2(c.angle),
         v: Math.round(c.speed || 0),
         lp: c.lap,
-        pg: Math.round(c.progress),
         rk: c.rank,
         it: c.item,
         sh: r1(c.shield),
@@ -586,20 +787,21 @@ export class Race {
         sp: r1(c.spin),
         mg: r1(c.magnet),
         sl: r1(c.slow),
+        gh: r1(c.ghost),
+        st: r1(c.star),
+        bu: r1(c.bubble),
         mn: Math.round(c.money),
-        cn: c.coins,
         au: c.autoDriven ? 1 : 0,
         of: c.offroad ? 1 : 0,
         dr: c.drifting ? 1 : 0,
         ww: c.wrongWay ? 1 : 0,
         fin: c.finished ? 1 : 0,
-        ft: c.finishTime == null ? null : r2(c.finishTime),
-        fr: c.finishRank || 0,
       })),
       // 0/1 のならびで「出ているか」を送る
       co: Array.from(this.coinTimer, (v) => (v > 0 ? 0 : 1)).join(''),
       bx: Array.from(this.boxTimer, (v) => (v > 0 ? 0 : 1)).join(''),
-      oil: this.oils.map((o) => [r1(o.x), r1(o.y)]),
+      oil: this.oils.map((o) => [r1(o.x), r1(o.y), o.kind === 'fire' ? 1 : 0]),
+      sht: this.shots.map((o) => [r1(o.x), r1(o.y), Math.round(o.size), o.kind === 'snowball' ? 1 : 0]),
       ev: this.drainEvents(),
     };
   }
@@ -682,7 +884,8 @@ export function npcInput(car, race) {
   // カーブに合わせた速度
   // うしろに いるときは ちょっとだけ はやく（せっても はなれすぎないように）
   const gap = (race.leaderProgress || car.progress) - car.progress;
-  const catchUp = clamp(1 + gap / 12000, 0.95, tier.catchUpMax);
+  const spurt = race.firstFinishTime != null && !car.finished ? 1.25 : 1;
+  const catchUp = clamp(1 + gap / 12000, 0.95, tier.catchUpMax) * spurt;
   let limit =
     track.limit[(car.hint + Math.round(look / track.spacing)) % track.N] * (0.35 + skill * 0.7) * catchUp;
   if (blundering) limit *= 1.6; // ブレーキを ふみわすれる

@@ -6,6 +6,7 @@
 import { clamp, dist, makeRng, wrapAngle } from './util.js';
 
 export const TRACK_DEFS = [
+  // ============================================================ カップ1（やさしい）
   {
     id: 'circuit',
     name: 'なかよしサーキット',
@@ -13,20 +14,50 @@ export const TRACK_DEFS = [
     difficulty: 1,
     surface: 'grass',
     halfWidth: 165,
+    special: null,
     theme: {
-      ground: '#7fd06a',
-      ground2: '#6cc25a',
-      road: '#5a5f6b',
-      roadLine: '#f7f7f2',
-      edge: '#ff6b6b',
-      edge2: '#ffffff',
-      sky: '#9fe0ff',
-      decor: 'tree',
+      ground: '#7fd06a', ground2: '#6cc25a', road: '#5a5f6b', roadLine: '#f7f7f2',
+      edge: '#ff6b6b', edge2: '#ffffff', sky: '#9fe0ff', decor: 'tree',
     },
     control: [
       [500, 1220], [660, 720], [1150, 480], [1850, 500], [2380, 690],
       [2620, 1000], [2960, 1160], [2740, 1520], [2220, 1760],
       [1520, 1820], [900, 1720], [530, 1520],
+    ],
+  },
+  {
+    id: 'park',
+    name: 'こうえん ひろば',
+    subtitle: 'まるい みちを ぐるぐる まわろう',
+    difficulty: 1,
+    surface: 'grass',
+    halfWidth: 170,
+    special: null,
+    theme: {
+      ground: '#8ad97a', ground2: '#74c765', road: '#6b6f7d', roadLine: '#fffdf0',
+      edge: '#ffb03d', edge2: '#ffffff', sky: '#a8e6ff', decor: 'tree',
+    },
+    control: [
+      [560, 1150], [760, 640], [1300, 460], [1900, 470], [2450, 640],
+      [2820, 1050], [2700, 1560], [2150, 1800], [1450, 1830], [820, 1650],
+    ],
+  },
+  {
+    id: 'farm',
+    name: 'ぼくじょう ロード',
+    subtitle: 'ゆるい S字が つづくよ',
+    difficulty: 2,
+    surface: 'grass',
+    halfWidth: 155,
+    special: 'candy',
+    theme: {
+      ground: '#c8e07a', ground2: '#b6d268', road: '#7a6a55', roadLine: '#fff8dc',
+      edge: '#e2703a', edge2: '#ffffff', sky: '#bfe9ff', decor: 'farm',
+    },
+    control: [
+      [520, 1500], [560, 950], [950, 640], [1450, 780], [1750, 1150],
+      [2150, 830], [2650, 700], [2980, 1020], [2900, 1500],
+      [2450, 1740], [1900, 1620], [1400, 1800], [880, 1780],
     ],
   },
   {
@@ -36,20 +67,70 @@ export const TRACK_DEFS = [
     difficulty: 2,
     surface: 'sand',
     halfWidth: 148,
+    special: 'bubble',
     theme: {
-      ground: '#ffe6a7',
-      ground2: '#f7d68a',
-      road: '#8d8377',
-      roadLine: '#fffbe8',
-      edge: '#39b7ff',
-      edge2: '#ffffff',
-      sky: '#7fd4ff',
-      decor: 'palm',
+      ground: '#ffe6a7', ground2: '#f7d68a', road: '#8d8377', roadLine: '#fffbe8',
+      edge: '#39b7ff', edge2: '#ffffff', sky: '#7fd4ff', decor: 'palm',
     },
     control: [
       [520, 1380], [520, 820], [900, 520], [1420, 700], [1720, 1120],
       [2040, 700], [2520, 540], [2920, 820], [2960, 1320],
       [2600, 1660], [2100, 1500], [1700, 1780], [1180, 1820], [700, 1760],
+    ],
+  },
+  // ============================================================ カップ2（ふつう）
+  {
+    id: 'harbor',
+    name: 'みなと ドライブ',
+    subtitle: 'うみぞいの ながい ストレート',
+    difficulty: 2,
+    surface: 'road',
+    halfWidth: 150,
+    special: 'bubble',
+    theme: {
+      ground: '#7ec9e8', ground2: '#6ab8db', road: '#5d6470', roadLine: '#f2f7ff',
+      edge: '#ffffff', edge2: '#2f6f9e', sky: '#8fdcff', decor: 'harbor',
+    },
+    control: [
+      [500, 1600], [500, 900], [800, 560], [1500, 480], [2200, 520],
+      [2750, 700], [3000, 1100], [2850, 1560], [2350, 1800],
+      [1700, 1850], [1050, 1780],
+    ],
+  },
+  {
+    id: 'desert',
+    name: 'サボテン さばく',
+    subtitle: 'すなで すべる！ ながい カーブ',
+    difficulty: 3,
+    surface: 'sand',
+    halfWidth: 152,
+    special: 'star',
+    theme: {
+      ground: '#f2c977', ground2: '#e5b962', road: '#a08256', roadLine: '#fff4d6',
+      edge: '#c65f3a', edge2: '#ffe9c0', sky: '#ffd9a0', decor: 'cactus',
+    },
+    control: [
+      [540, 1250], [700, 700], [1250, 520], [1800, 700], [2050, 1100],
+      [2400, 780], [2900, 900], [3020, 1400], [2600, 1720],
+      [2000, 1780], [1400, 1620], [900, 1750], [520, 1650],
+    ],
+  },
+  {
+    id: 'jungle',
+    name: 'ジャングル たんけん',
+    subtitle: 'せまい みちと きゅうカーブ',
+    difficulty: 3,
+    surface: 'grass',
+    halfWidth: 138,
+    special: 'vine',
+    theme: {
+      ground: '#3f9e5c', ground2: '#35894f', road: '#6b5a44', roadLine: '#e9ffe4',
+      edge: '#f2d24b', edge2: '#2c6b41', sky: '#69d38a', decor: 'jungle',
+    },
+    control: [
+      [600, 1700], [520, 1150], [880, 880], [1350, 1000], [1600, 700],
+      [2100, 560], [2450, 850], [2200, 1200], [2600, 1400],
+      [3000, 1250], [3020, 1700], [2500, 1850], [1800, 1780], [1150, 1880],
     ],
   },
   {
@@ -59,15 +140,10 @@ export const TRACK_DEFS = [
     difficulty: 3,
     surface: 'snow',
     halfWidth: 138,
+    special: 'snowball',
     theme: {
-      ground: '#eaf6ff',
-      ground2: '#d8ecfb',
-      road: '#9fb4c7',
-      roadLine: '#ffffff',
-      edge: '#7a9ec4',
-      edge2: '#ffffff',
-      sky: '#bfe4ff',
-      decor: 'snow',
+      ground: '#eaf6ff', ground2: '#d8ecfb', road: '#9fb4c7', roadLine: '#ffffff',
+      edge: '#7a9ec4', edge2: '#ffffff', sky: '#bfe4ff', decor: 'snow',
     },
     control: [
       [620, 1780], [500, 1280], [820, 1000], [1240, 1160], [1520, 900],
@@ -76,7 +152,119 @@ export const TRACK_DEFS = [
       [2100, 1820], [1600, 1660], [1080, 1860],
     ],
   },
+  // ========================================================== カップ3（むずかしい）
+  {
+    id: 'city',
+    name: 'よるの シティ',
+    subtitle: 'ネオンの まちを かけぬけろ',
+    difficulty: 4,
+    surface: 'road',
+    halfWidth: 142,
+    special: 'star',
+    theme: {
+      ground: '#2c3350', ground2: '#252b45', road: '#3d4358', roadLine: '#ffe66d',
+      edge: '#ff4d8d', edge2: '#5ce1e6', sky: '#1b2036', decor: 'city',
+    },
+    control: [
+      [560, 1500], [520, 950], [900, 600], [1450, 560], [1780, 880],
+      [2150, 600], [2700, 640], [2980, 1020], [2870, 1500],
+      [2350, 1810], [1700, 1870], [1080, 1720],
+    ],
+  },
+  {
+    id: 'candy',
+    name: 'おかしの くに',
+    subtitle: 'あまーい みちは ベタベタ すべる',
+    difficulty: 4,
+    surface: 'candy',
+    halfWidth: 145,
+    special: 'candy',
+    theme: {
+      ground: '#ffd7ec', ground2: '#ffc6e4', road: '#b06ea8', roadLine: '#fff3fa',
+      edge: '#ff7bc0', edge2: '#fff0f8', sky: '#ffe3f4', decor: 'candy',
+    },
+    control: [
+      [560, 1300], [620, 780], [1100, 520], [1600, 640], [1850, 1000],
+      [2200, 640], [2750, 620], [3000, 1050], [2880, 1520],
+      [2400, 1780], [1850, 1650], [1350, 1820], [800, 1700],
+    ],
+  },
+  {
+    id: 'volcano',
+    name: 'ドキドキ かざん',
+    subtitle: 'あつい！ ほのおに 気をつけて',
+    difficulty: 5,
+    surface: 'lava',
+    halfWidth: 136,
+    special: 'fireball',
+    theme: {
+      ground: '#5b2b2b', ground2: '#4c2424', road: '#3a3238', roadLine: '#ffb347',
+      edge: '#ff5722', edge2: '#ffd08a', sky: '#7a2f2f', decor: 'volcano',
+    },
+    control: [
+      [600, 1650], [520, 1100], [900, 820], [1350, 950], [1550, 640],
+      [2050, 520], [2400, 800], [2150, 1150], [2600, 1300],
+      [3000, 1150], [3020, 1620], [2500, 1820], [1900, 1700], [1200, 1830],
+    ],
+  },
+  {
+    id: 'space',
+    name: 'うちゅう ステーション',
+    subtitle: 'さいごの ステージ！ ツルツルで きゅうカーブ',
+    difficulty: 5,
+    surface: 'space',
+    halfWidth: 134,
+    special: 'star',
+    theme: {
+      ground: '#131a33', ground2: '#0f1529', road: '#4a5580', roadLine: '#9fe8ff',
+      edge: '#7b5cff', edge2: '#9fe8ff', sky: '#0b1020', decor: 'space',
+    },
+    control: [
+      [640, 1760], [500, 1180], [860, 840], [1400, 740], [1740, 1060],
+      [2080, 720], [2520, 560], [2960, 820], [3060, 1320],
+      [2740, 1700], [2180, 1800], [1620, 1620], [1080, 1840],
+    ],
+  },
 ];
+
+/** グランプリ（4コース × 3カップ） */
+export const GRAND_PRIX = [
+  {
+    id: 'friend',
+    name: 'なかよしカップ',
+    badge: '🌼',
+    desc: 'はじめての 4コース。ひろい みちが おおい',
+    tracks: ['circuit', 'park', 'farm', 'beach'],
+  },
+  {
+    id: 'wonder',
+    name: 'わくわくカップ',
+    badge: '⭐',
+    desc: 'うみ・さばく・ジャングル・ゆきやま',
+    tracks: ['harbor', 'desert', 'jungle', 'snow'],
+  },
+  {
+    id: 'champion',
+    name: 'チャンピオンカップ',
+    badge: '🏆',
+    desc: 'よるの まちから うちゅうまで。いちばん むずかしい',
+    tracks: ['city', 'candy', 'volcano', 'space'],
+  },
+];
+
+export function grandPrixList() {
+  return GRAND_PRIX.map((g) => ({
+    id: g.id,
+    name: g.name,
+    badge: g.badge,
+    desc: g.desc,
+    tracks: g.tracks.slice(),
+  }));
+}
+
+export function grandPrixById(id) {
+  return GRAND_PRIX.find((g) => g.id === id) || GRAND_PRIX[0];
+}
 
 const SPACING = 16; // 中心線をこの間隔でサンプリング
 const cache = new Map();
@@ -95,6 +283,8 @@ export function trackList() {
     name: d.name,
     subtitle: d.subtitle,
     difficulty: d.difficulty,
+    surface: d.surface,
+    special: d.special || null,
     theme: d.theme,
   }));
 }
@@ -211,6 +401,7 @@ function buildTrack(def) {
     name: def.name,
     surface: def.surface,
     halfWidth: def.halfWidth,
+    special: def.special || null,
     theme: def.theme,
     pts,
     seg,
@@ -318,9 +509,12 @@ function makeDecor(track) {
 
 function makeStartGrid(track) {
   const L = track.length;
-  const rows = [
-    [-90, -60], [-90, 60], [-190, -60], [-190, 60],
-  ];
+  // 2台ずつ 4れつ ＝ さいだい 8台
+  const rows = [];
+  for (let row = 0; row < 4; row++) {
+    const back = -90 - row * 100;
+    rows.push([back, -62], [back, 62]);
+  }
   return rows.map(([back, lat]) => {
     const arc = (L + back) % L;
     const p = posAt(track, arc, lat);

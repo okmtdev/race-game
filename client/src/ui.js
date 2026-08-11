@@ -1,5 +1,5 @@
 // メニュー画面（タイトル・ロビー・ショップ・けっか）の HTML を つくる
-import { CAR_COLORS, EMOTES, NPC_DIFFICULTY } from '../../shared/constants.js';
+import { CAR_COLORS, EMOTES, ITEMS, NPC_DIFFICULTY } from '../../shared/constants.js';
 import { MAX_LEVEL } from '../../shared/catalog.js';
 import { carById } from '../../shared/cars.js';
 import { yen, timeStr } from '../../shared/util.js';
@@ -76,10 +76,18 @@ function titleScreen(g) {
       <span><span class="kbd">スペース</span> アイテム</span>
       <span>スマホは 画面の ボタン</span>
     </div>
-    <p>コインを あつめると おかねが たまります。レースの あとの ショップで
-      エンジンや タイヤを つよくして、つぎの レースで あそべます。</p>
+    <p>コインを あつめると おかねが たまります。レースの あとの ガレージで
+      マシンや パーツを かって、つぎの レースに はんえいされます。
+      おかねと 買ったものは この きかいに 保存されて、つぎに あそぶ ときも つかえます。</p>
     <p class="sub">スタートの カウントが「1」の あいだに アクセルを おしっぱなしにすると
       <b>ロケットスタート</b>！</p>
+    <h2>アイテム</h2>
+    <div class="itemhelp">
+      ${Object.entries(ITEMS).map(([k, v]) => `
+        <span class="${v.special ? 'sp' : ''}">${v.icon} ${esc(v.name)}
+          <i>${esc(v.desc)}</i></span>`).join('')}
+    </div>
+    <p class="sub">⭐がついた ものは「そのステージだけ」で 出る とくべつアイテム</p>
   </div>`;
 }
 
@@ -111,11 +119,26 @@ function lobbyScreen(g) {
       <span class="tag npc">AI</span></div>`
   )).join('');
 
-  const tracks = (g.tracks || []).map((t) => `
-    <div class="tcard${room.settings.track === t.id ? ' on' : ''}" data-a="track:${t.id}">
+  const trackCard = (t, selectable, label) => `
+    <div class="tcard${!selectable || room.settings.track === t.id ? ' on' : ''}"
+      ${selectable ? `data-a="track:${t.id}"` : ''}>
       <canvas data-thumb="${t.id}"></canvas>
-      <div class="tn">${esc(t.name)}</div>
-      <div class="ts">${'★'.repeat(t.difficulty)}${'☆'.repeat(3 - t.difficulty)} ${esc(t.subtitle)}</div>
+      <div class="tn">${label || ''}${esc(t.name)}</div>
+      <div class="ts">${'★'.repeat(t.difficulty)}${'☆'.repeat(5 - t.difficulty)}
+        ${t.special ? ' ' + (ITEMS[t.special] || {}).icon : ''} ${esc(t.subtitle)}</div>
+    </div>`;
+  const trackById = (id) => (g.tracks || []).find((t) => t.id === id);
+  const tracks = (g.tracks || []).map((t) => trackCard(t, true)).join('');
+
+  // グランプリ（カップ）えらび
+  const cups = (g.grandPrix || []).map((cup) => `
+    <div class="cup${room.settings.gp === cup.id ? ' on' : ''}" data-a="cup:${cup.id}">
+      <div class="cup-h">${cup.badge} ${esc(cup.name)}</div>
+      <div class="cup-d">${esc(cup.desc)}</div>
+      <div class="cup-t">${cup.tracks.map((id) => {
+        const t = trackById(id);
+        return `<span><canvas data-thumb="${id}"></canvas>${esc(t ? t.name : id)}</span>`;
+      }).join('')}</div>
     </div>`).join('');
 
   const startBox = isHost
@@ -125,24 +148,26 @@ function lobbyScreen(g) {
 
   const hostBox = isHost ? `
     <h2>ルール（ホストが きめる）</h2>
+    ${room.locked ? '<div class="warn">グランプリ中は 人数と NPCの つよさは かえられません。</div>' : ''}
     <div class="row">
-      <button class="${room.settings.mode === 'gp' ? 'primary' : 'ghost'}" data-a="mode:gp">🏆 グランプリ（3コース）</button>
+      <button class="${room.settings.mode === 'gp' ? 'primary' : 'ghost'}" data-a="mode:gp">🏆 グランプリ（4コース）</button>
       <button class="${room.settings.mode === 'single' ? 'primary' : 'ghost'}" data-a="mode:single">🚗 1レースだけ</button>
     </div>
     <div class="row" style="margin-top:8px">
-      <span>しゅうかいすう</span>
+      <span>なんだいで はしる？</span>
+      ${[4, 8].map((n) => `<button class="${room.settings.racers === n ? 'primary' : 'ghost'}" data-a="racers:${n}">${n}だい</button>`).join('')}
+      <span style="margin-left:12px">しゅうかいすう</span>
       ${[1, 2, 3, 4, 5].map((n) => `<button class="${room.settings.laps === n ? 'primary' : 'ghost'}" data-a="laps:${n}">${n}</button>`).join('')}
-      <span style="margin-left:12px">NPC ぜんいんの つよさ</span>
-      ${Object.keys(DIFF_LABEL).map((k) => `<button class="${room.settings.difficulty === k ? 'primary' : 'ghost'}" data-a="diff:${k}">${DIFF_LABEL[k]}</button>`).join('')}
     </div>
-    ${room.settings.mode === 'single' ? `<h2>コースを えらぶ</h2><div class="tracks">${tracks}</div>` : `
-      <h2>グランプリの コース</h2>
-      <div class="tracks">${(g.tracks || []).map((t, i) => `
-        <div class="tcard on">
-          <canvas data-thumb="${t.id}"></canvas>
-          <div class="tn">${i + 1}. ${esc(t.name)}</div>
-          <div class="ts">${esc(t.subtitle)}</div>
-        </div>`).join('')}</div>`}
+    <div class="row" style="margin-top:8px">
+      <span>NPCの つよさ</span>
+      ${Object.entries(NPC_DIFFICULTY).map(([k, v]) => `
+        <button class="${room.settings.difficulty === k ? 'primary' : 'ghost'}" data-a="diff:${k}">
+          ${esc(v.label)}<span style="font-size:11px;display:block;opacity:.7">${esc(v.desc)}</span></button>`).join('')}
+    </div>
+    ${room.settings.mode === 'single'
+      ? `<h2>コースを えらぶ（12コース）</h2><div class="tracks">${tracks}</div>`
+      : `<h2>グランプリを えらぶ</h2><div class="cups">${cups}</div>`}
   ` : '';
 
   const joinHint = g.mode === 'online' ? `
@@ -155,8 +180,8 @@ function lobbyScreen(g) {
   return `
   <div class="panel">
     <h1>${g.mode === 'online' ? 'みんなの ロビー' : 'ひとりで れんしゅう'}</h1>
-    <p class="sub">4だいで レースします。たりない ぶんは NPC が はいります
-      （🔰へた が おおめ・😎じょうず は つよい）</p>
+    <p class="sub">${room.settings.racers}だいで レースします。たりない ぶんは NPC が はいります
+      （🔰へた が おおめ）</p>
     <div class="plist">${players}${npcs}</div>
     ${startBox}
     ${joinHint}
@@ -315,7 +340,7 @@ function resultScreen(g) {
   const mine = res.find((r) => r.id === g.myId);
   return `
   <div class="panel">
-    <h1>${g.raceInfo ? `レース ${g.raceInfo.race} / ${g.raceInfo.total}` : ''} けっか</h1>
+    <h1>${g.raceInfo ? `${esc(g.raceInfo.cup || '')} レース ${g.raceInfo.race} / ${g.raceInfo.total}` : ''} けっか</h1>
     ${mine ? `<p class="sub">きみは <b>${mine.rank}い</b>！ ${yen(mine.money)} かせいだよ 🎉</p>` : ''}
     <table>
       <tr><th>じゅんい</th><th>なまえ</th><th class="num">タイム</th><th class="num">ベストラップ</th>

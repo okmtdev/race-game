@@ -145,6 +145,23 @@ export function normalizeProfile(p) {
 }
 
 /**
+ * ブラウザに 保存してある ガレージを 受けとって 取りこむ。
+ * サーバの きろくより「たくさん かせいでいる」ほうを 正として のこすので、
+ * べつの サーバや ひとりモードで あそんだ ぶんも 引きつがれる。
+ * @returns {boolean} 取りこんだら true
+ */
+export function mergeProfile(target, incoming) {
+  const inc = normalizeProfile(incoming);
+  const mine = Number(target.totalEarned || 0);
+  const theirs = Number(inc.totalEarned || 0);
+  if (theirs <= mine) return false;
+  const keepName = target.name;
+  for (const k of Object.keys(inc)) target[k] = inc[k];
+  target.name = keepName;
+  return true;
+}
+
+/**
  * プロフィールから実際の走行性能を計算する。
  * race.js はこの結果だけを見る（＝ショップの効果がそのまま走りに反映される）。
  */

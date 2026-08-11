@@ -9,7 +9,7 @@ import { Input } from './input.js';
 import { LocalLink, NetLink, toWsUrl } from './net.js';
 import { engine, setSound, sfx, unlockAudio } from './sfx.js';
 import { drawThumbs, emoteBarHtml, screenHtml } from './ui.js';
-import { settings, saveSettings } from './store.js';
+import { loadGarage, saveGarage, settings, saveSettings } from './store.js';
 
 const RENDER_DELAY = 30; // ミリ秒。ちょっと遅らせて なめらかに見せる
 
@@ -134,6 +134,12 @@ class Game {
       case 'mode':
         this.send({ t: 'settings', mode: arg1 });
         break;
+      case 'cup':
+        this.send({ t: 'settings', gp: arg1 });
+        break;
+      case 'racers':
+        this.send({ t: 'settings', racers: Number(arg1) });
+        break;
       case 'laps':
         this.send({ t: 'settings', laps: Number(arg1) });
         break;
@@ -224,7 +230,14 @@ class Game {
   connect(mode) {
     this.disconnect(true);
     this.mode = mode;
-    const join = { t: 'join', name: this.name, color: this.color, touch: matchMedia('(pointer: coarse)').matches };
+    const join = {
+      t: 'join',
+      name: this.name,
+      color: this.color,
+      touch: matchMedia('(pointer: coarse)').matches,
+      // ブラウザに 保存してある ガレージを もっていく（おかね・買ったものの 引きつぎ）
+      garage: loadGarage(this.name),
+    };
     if (mode === 'local') {
       this.screen = 'lobby';
       this.link = new LocalLink(join, (m) => this.onMessage(m));
@@ -267,11 +280,14 @@ class Game {
       case 'hello':
         this.myId = m.id;
         this.tracks = m.tracks;
+        this.grandPrix = m.grandPrix;
         this.catalog = m.catalog;
         break;
       case 'you':
         this.profile = m.profile;
         this.color = m.profile.color;
+        // おかね・買ったものは いつも ブラウザにも 保存しておく
+        saveGarage(m.profile);
         break;
       case 'room': {
         this.room = m.room;
@@ -375,7 +391,12 @@ class Game {
         }
         break;
       case 'useitem':
-        if (mine && ev.item === 'shield') sfx.shield();
+        if (!mine) break;
+        if (ev.item === 'shield' || ev.item === 'ghost') sfx.shield();
+        else if (ev.item === 'star') {
+          sfx.finish();
+          this.bigMessage('⭐ むてき！', 1.4, true);
+        } else if (ev.item === 'shot' || ev.item === 'snowball') sfx.item();
         break;
       case 'boost':
         if (mine) {
@@ -402,7 +423,32 @@ class Game {
       case 'slow':
         if (mine) {
           sfx.thunder();
-          this.bigMessage('カミナリ！', 0.9, true);
+          this.bigMessage(ev.kind === 'candy' ? 'ベタベタ〜！' : 'カミナリ！', 0.9, true);
+        }
+        break;
+      case 'bubble':
+        if (mine) {
+          sfx.item();
+          this.bigMessage('ふわふわ〜！ ハンドルが きかない', 1.2, true);
+        }
+        break;
+      case 'bubbled':
+        if (ev.from === this.myId) this.bigMessage('シャボンで つつんだ！', 1, true);
+        break;
+      case 'swap':
+        if (mine) {
+          sfx.boost();
+          this.bigMessage('いれかわり！', 1.2, true);
+          r.shake = 0.5;
+        }
+        break;
+      case 'shothit':
+        r.shake = Math.max(r.shake, 0.4);
+        for (let i = 0; i < 12; i++) {
+          r.spawn(ev.x, ev.y, {
+            vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.5) * 260,
+            life: 0.5, size: 7, color: ev.kind === 'snowball' ? '#ffffff' : '#ffc46b',
+          });
         }
         break;
       case 'thunder':
@@ -462,6 +508,8 @@ class Game {
       coins: b.snap.co,
       boxes: b.snap.bx,
       oils: b.snap.oil,
+      shots: b.snap.sht,
+      spurt: b.snap.sp,
       rt: b.snap.rt + (now - b.at) / 1000,
       phase: b.snap.ph,
     };
@@ -524,8 +572,14 @@ class Game {
     el.item.textContent = item ? (ITEMS[item] || {}).icon : '－';
     el.item.classList.toggle('empty', !item);
 
-    // じゅんい表
-    const order = view.cars.slice().sort((x, y) => x.rk - y.rk);
+    // じゅんい表（8だいのときは 小さめ。画面が ひくい ときは 自分の まわりだけ）
+    let order = view.cars.slice().sort((x, y) => x.rk - y.rk);
+    el.standings.classList.toggle('compact', order.length > 4);
+    if (order.length > 4 && this.renderer.h < 520) {
+      const myIdx = Math.max(0, order.findIndex((c) => c.i === this.myId));
+      const from = clamp(myIdx - 1, 0, Math.max(0, order.length - 4));
+      order = order.slice(from, from + 4);
+    }
     el.standings.innerHTML = order.map((c) => {
       const meta = (this.renderer.carMeta && this.renderer.carMeta.get(c.i)) || {};
       const hex = colorOf(meta.color);
@@ -542,6 +596,9 @@ class Game {
     } else if (this.msg.ttl > 0) {
       el.bigMsg.classList.toggle('small', this.msg.small);
       el.bigMsg.textContent = this.msg.text;
+    } else if (view.spurt && !me.fin && this.msg.ttl <= 0) {
+      el.bigMsg.classList.add('small');
+      el.bigMsg.textContent = '🏁 ラストスパート！';
     } else if (me.au && !view.spectating) {
       el.bigMsg.classList.add('small');
       el.bigMsg.textContent = '🤖 AIが うんてん中（ボタンを おしてね）';
